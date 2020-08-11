@@ -10,9 +10,14 @@ from traders.ma.trader import Trader
 
 class TestWrapper(EWrapper):
 
-    def __init__(self, traders):
+    def __init__(self, traders, secondaryTrader=None):
         super().__init__()
         self.traders = traders
+        for trader in traders:
+            if secondaryTrader is None:
+                trader.traderApp = self
+            else:
+                trader.traderApp = secondaryTrader
 
     def realtimeBar(self,
                     reqId: TickerId,

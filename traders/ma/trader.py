@@ -19,6 +19,7 @@ class Trader:
                  df=None):
 
         self.last_response_time = None
+        self.traderApp = None
         if mas is None:
             mas = [
                 {"name": "SMA26", "period": 26, "type": "SMA"},
