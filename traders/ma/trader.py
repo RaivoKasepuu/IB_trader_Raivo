@@ -94,10 +94,14 @@ class Trader:
         print("Symbol", self.contract.symbol, "\n\n", self.df)
         if self.current_state is not last_state and last_state is not 'HOLD':
             acceptable_delta = self.last_price * self.delta_percentage
-            time_remaining = (datetime.datetime.now() - self.tradingHoursEnd).total_seconds() / 60.0
+            time_remaining = (self.tradingHoursEnd - datetime.datetime.now()).total_seconds() / 60.0
             if self.isTradingHours() and time_remaining < 2:
                 if self.current_state is 'LONG':
                     self.sell(price=self.last_price)
+                elif datetime.datetime.now() > self.tradingHoursEnd:
+                    print("End of day. Trader EXIT")
+                    self.traderApp.disconnect()
+                    raise SystemExit
             elif self.isTradingHours() and last_state is 'LONG' and abs(
                     self.last_sell_price - self.last_price) > acceptable_delta:
                 self.buy(price=self.last_price)

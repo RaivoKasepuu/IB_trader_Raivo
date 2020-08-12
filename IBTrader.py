@@ -97,4 +97,5 @@ if __name__ == '__main__':
     for traderDict in traderDictList:
         reqId = traderDict['reqId']
         trader = traderDict['trader']
+        print("RealTimeBars requested from", trader.contract.symbol)
         app.reqRealTimeBars(reqId, trader.contract, 30, "TRADES", False, [])
