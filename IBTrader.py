@@ -8,16 +8,37 @@ from ibapi.wrapper import *
 from traders.ma.trader import Trader
 
 
-class TestWrapper(EWrapper):
+class IBWrapper(EWrapper):
 
     def __init__(self, traders, secondaryTrader=None):
         super().__init__()
+
         self.traders = traders
+        self.nextorderId = None
+
         for trader in traders:
             if secondaryTrader is None:
-                trader.traderApp = self
+                trader['trader'].traderApp = self
             else:
-                trader.traderApp = secondaryTrader
+                trader['trader'].traderApp = secondaryTrader
+
+    def nextValidId(self, orderId: int):
+        super().nextValidId(orderId)
+        self.nextorderId = orderId
+        print('The next valid order id is: ', self.nextorderId)
+
+    def orderStatus(self, orderId, status, filled, remaining, avgFullPrice, permId, parentId, lastFillPrice, clientId,
+                    whyHeld, mktCapPrice):
+        print('orderStatus - orderid:', orderId, 'status:', status, 'filled', filled, 'remaining', remaining,
+              'lastFillPrice', lastFillPrice)
+
+    def openOrder(self, orderId, contract, order, orderState):
+        print('openOrder id:', orderId, contract.symbol, contract.secType, '@', contract.exchange, ':', order.action,
+              order.orderType, order.totalQuantity, orderState.status)
+
+    def execDetails(self, reqId, contract, execution):
+        print('Order Executed: ', reqId, contract.symbol, contract.secType, contract.currency, execution.execId,
+              execution.orderId, execution.shares, execution.lastLiquidity)
 
     def realtimeBar(self,
                     reqId: TickerId,
@@ -31,16 +52,16 @@ class TestWrapper(EWrapper):
                 break
 
 
-class TestClient(EClient):
+class IBClient(EClient):
 
     def __init__(self, wrapper):
         EClient.__init__(self, wrapper)
 
 
-class TestApp(TestWrapper, TestClient):
-    def __init__(self, ipaddress, portid, traders):
-        TestWrapper.__init__(self, traders)
-        TestClient.__init__(self, wrapper=self)
+class IBApp(IBWrapper, IBClient):
+    def __init__(self, ipaddress, portid, traders, secondaryTrader=None):
+        IBWrapper.__init__(self, traders, secondaryTrader)
+        IBClient.__init__(self, wrapper=self)
 
         self.connect(ipaddress, portid, 12)
 
@@ -48,16 +69,29 @@ class TestApp(TestWrapper, TestClient):
         thread.start()
         setattr(self, "_thread", thread)
 
+        tradingApp = self
+        if secondaryTrader is not None:
+            tradingApp = secondaryTrader
+        while True:
+            if isinstance(tradingApp.nextorderId, int):
+                print('connected')
+                print()
+                break
+            else:
+                print('waiting for connection')
+                time.sleep(1)
+
 
 if __name__ == '__main__':
 
     traderDictList = [
-        {"reqId": 1, "trader": Trader('SOXL', units=400)},
-        {"reqId": 2, "trader": Trader('TECL', units=400)},
-        {"reqId": 3, "trader": Trader('AAPL', units=400)}
+        {"reqId": 1, "trader": Trader('NVDA', units=45)}
     ]
 
-    app = TestApp("127.0.0.1", 7496, traderDictList)
+    paperTrader = IBApp("127.0.0.1", 7400, traderDictList)
+    time.sleep(5)
+
+    app = IBApp("127.0.0.1", 7496, traders=traderDictList, secondaryTrader=paperTrader)
     time.sleep(5)
 
     for traderDict in traderDictList:
