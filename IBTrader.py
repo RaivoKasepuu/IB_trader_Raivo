@@ -6,6 +6,7 @@ from ibapi.client import *
 from ibapi.wrapper import *
 
 from traders.ma.trader import Trader
+import logging
 
 
 class IBWrapper(EWrapper):
@@ -25,20 +26,14 @@ class IBWrapper(EWrapper):
     def nextValidId(self, orderId: int):
         super().nextValidId(orderId)
         self.nextorderId = orderId
-        print('The next valid order id is: ', self.nextorderId)
+        logging.info('The next valid order id is: %s', self.nextorderId)
 
     def orderStatus(self, orderId, status, filled, remaining, avgFullPrice, permId, parentId, lastFillPrice, clientId,
                     whyHeld, mktCapPrice):
-        print('orderStatus - orderid:', orderId, 'status:', status, 'filled', filled, 'remaining', remaining,
-              'lastFillPrice', lastFillPrice)
-
-    def openOrder(self, orderId, contract, order, orderState):
-        print('openOrder id:', orderId, contract.symbol, contract.secType, '@', contract.exchange, ':', order.action,
-              order.orderType, order.totalQuantity, orderState.status)
+        logging.info('Order status: %s. Id: %s. Filled: %s', status, orderId, filled)
 
     def execDetails(self, reqId, contract, execution):
-        print('Order Executed: ', reqId, contract.symbol, contract.secType, contract.currency, execution.execId,
-              execution.orderId, execution.shares, execution.lastLiquidity)
+        logging.info('Order executed: %s', contract.symbol, execution.shares)
 
     def realtimeBar(self,
                     reqId: TickerId,
@@ -83,15 +78,16 @@ class IBApp(IBWrapper, IBClient):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(format='%(asctime)s-%(levelname)s:%(message)s')
 
     traderDictList = [
-        {"reqId": 1, "trader": Trader('NVDA', units=45)}
+        {"reqId": 1, "trader": Trader('TSLA', units=12)},
+        {"reqId": 2, "trader": Trader('NVDA', units=35)},
+        {"reqId": 3, "trader": Trader('AMD', units=195)},
+        {"reqId": 4, "trader": Trader('TWLO', units=64)}
     ]
 
-    paperTrader = IBApp("127.0.0.1", 7400, traderDictList)
-    time.sleep(5)
-
-    app = IBApp("127.0.0.1", 7496, traders=traderDictList, secondaryTrader=paperTrader)
+    app = IBApp("127.0.0.1", 7400, traders=traderDictList)
     time.sleep(5)
 
     for traderDict in traderDictList:

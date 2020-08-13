@@ -6,6 +6,7 @@ import datetime
 import numpy as np
 from helpers.ibhelper import us_stocks_contract
 from helpers.threading import synchronized_method
+from message.chatbot import ChatBot
 
 
 class Trader:
@@ -14,21 +15,30 @@ class Trader:
                  units=None,
                  contract: Contract = None,
                  mas=None,
-                 max_data_size=30,
-                 bar_size=30,
-                 delta=0.0020,
+                 max_data_size=400,
+                 bar_size=60,
+                 delta=0.0012,
+                 tradingHoursStart=None,
+                 tradingHoursEnd=None,
                  df=None):
         self.orderDataDf = None
-        self.tradingHoursStart = datetime.datetime.now().replace(hour=16, minute=30, second=1)
-        self.tradingHoursEnd = datetime.datetime.now().replace(hour=23, minute=00, second=0)
+        self.chatbot = ChatBot()
+        self.tradingHoursStart = tradingHoursStart
+        if self.tradingHoursStart is None:
+            self.tradingHoursStart = self.get_now().replace(hour=16, minute=30, second=1)
+
+        self.tradingHoursEnd = tradingHoursEnd
+        if self.tradingHoursEnd is None:
+            self.tradingHoursEnd = self.get_now().replace(hour=23, minute=00, second=0)
+
         self.last_response_time = None
         self.previousOrderId = None
         self.traderApp = None
         self.orderData = []
         if mas is None:
             mas = [
-                {"name": "SMA26", "period": 26, "type": "SMA"},
-                {"name": "SMA12", "period": 12, "type": "SMA"}
+                {"name": "SMA20", "period": 20, "type": "SMA"},
+                {"name": "SMA6", "period": 9, "type": "SMA"}
             ]
         self.mas = mas
         self.contract = contract
@@ -49,10 +59,9 @@ class Trader:
         print(self.current_state, self.contract.symbol, bar)
         if self.df is None:
             self.df = self.createDf(bar)
-            self.trade()
         elif self.last_response_time is None or bar.time - self.last_response_time >= self.bar_size:
             self.df = self.df.append(self.createDf(bar))
-            self.trade()
+        self.trade()
         if len(self.df.axes[0]) >= self.max_data_size:
             self.df = self.df.iloc[1:]
 
@@ -76,14 +85,9 @@ class Trader:
         return last_sentiment, last_price, last_time
 
     def comparePrices(self, row):
-        for ma in self.mas:
-            if np.isnan(row[ma['name']]):
-                return 'HOLD'
-        is_bigger = True
-        for ma in self.mas:
-            if row['close'] <= row[ma['name']]:
-                is_bigger = False
-        if is_bigger:
+        if np.isnan(row['SMA6']):
+            return 'HOLD'
+        if row['close'] > row['SMA6']:
             return 'LONG'
         else:
             return 'SHORT'
@@ -91,23 +95,22 @@ class Trader:
     @synchronized_method
     def trade(self):
         last_state, self.last_price, self.last_response_time = self.calculateMAsAndSentiment()
-        print("Symbol", self.contract.symbol, "\n\n", self.df)
         if self.current_state is not last_state and last_state is not 'HOLD':
-            acceptable_delta = self.last_price * self.delta_percentage
-            time_remaining = (self.tradingHoursEnd - datetime.datetime.now()).total_seconds() / 60.0
+            time_remaining = (self.tradingHoursEnd - self.get_now()).total_seconds() / 60.0
             if self.isTradingHours() and time_remaining < 2:
                 if self.current_state is 'LONG':
                     self.sell(price=self.last_price)
-                elif datetime.datetime.now() > self.tradingHoursEnd:
+                elif self.get_now() > self.tradingHoursEnd:
                     print("End of day. Trader EXIT")
                     self.traderApp.disconnect()
                     raise SystemExit
-            elif self.isTradingHours() and last_state is 'LONG' and abs(
-                    self.last_sell_price - self.last_price) > acceptable_delta:
+            elif self.isTradingHours() and last_state is 'LONG' and self.current_state is not 'LONG' and self.canBuy():
                 self.buy(price=self.last_price)
-            elif self.isTradingHours() and last_state is 'SHORT' and self.current_state is not None and abs(
-                    self.last_buy_price - self.last_price) > acceptable_delta:
+            elif self.isTradingHours() and last_state is 'SHORT' and self.current_state is 'LONG' and self.canSell():
                 self.sell(price=self.last_price)
+
+    def get_now(self):
+        return datetime.datetime.now()
 
     def buy(self, price=None):
 
@@ -116,8 +119,6 @@ class Trader:
         order.action = 'BUY'
         order.orderType = "MKT"
         order.totalQuantity = self.units
-        if self.previousOrderId:
-            order.parentId = self.previousOrderId
 
         self.traderApp.placeOrder(self.traderApp.nextorderId, self.contract, order)
         self.previousOrderId = self.traderApp.nextorderId
@@ -125,11 +126,12 @@ class Trader:
 
         self.current_state = 'LONG'
 
-        self.writeCsv(['BUY', price])
+        self.writeCsv([self.get_now(), 'BUY', price])
         print("Buy", price)
+        self.chatbot.send("BOUGHT\nSYMBOL: " + self.contract.symbol + "\nPRICE: " + str(price))
 
     def sell(self, price=None):
-
+        earned = (price - self.last_buy_price) * self.units
         self.last_sell_price = price
         order = Order()
         order.action = 'SELL'
@@ -142,13 +144,23 @@ class Trader:
 
         self.current_state = 'SHORT'
 
-        self.writeCsv(['BUY', price])
+        self.writeCsv([self.get_now(), 'SELL', price])
         print("Sell", price)
+        self.chatbot.send(
+            "SOLD\nSYMBOL: " + self.contract.symbol + "\nPRICE: " + str(price) + "\nEARNED: " + str(earned))
 
     def writeCsv(self, orderData):
+
         self.orderData.append(orderData)
-        self.orderDataDf = pandas.DataFrame(self.orderData, columns=['action', 'price'])
+        self.orderDataDf = pandas.DataFrame(self.orderData, columns=['time', 'action', 'price'])
         self.orderDataDf.to_csv(self.contract.symbol + '.csv')
 
     def isTradingHours(self):
-        return self.tradingHoursStart <= datetime.datetime.now() < self.tradingHoursEnd
+        return self.tradingHoursStart <= self.get_now() < self.tradingHoursEnd
+
+    def canBuy(self):
+        return True
+        # return (abs(self.last_sell_price - self.last_price) / self.last_price) >= self.delta_percentage
+
+    def canSell(self):
+        return (abs(self.last_buy_price - self.last_price) / self.last_price) >= self.delta_percentage

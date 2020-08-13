@@ -7,14 +7,17 @@ idna==2.8
 jdcal==1.4.1
 kiwisolver==1.2.0
 matplotlib==3.3.0
+nltk==3.2.4
 numpy==1.19.1
 openpyxl==3.0.4
 pandas==1.0.3
 Pillow==7.2.0
+preprocessing==0.1.13
 pyparsing==2.4.7
 python-dateutil==2.8.1
 pytz==2020.1
 requests==2.22.0
 six==1.15.0
+sphinx-rtd-theme==0.2.4
 urllib3==1.25.10
 xlrd==1.2.0
