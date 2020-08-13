@@ -6,7 +6,8 @@ import datetime
 import numpy as np
 from helpers.ibhelper import us_stocks_contract
 from helpers.threading import synchronized_method
-from message.chatbot import ChatBot
+
+import logging
 
 
 class Trader:
@@ -15,14 +16,15 @@ class Trader:
                  units=None,
                  contract: Contract = None,
                  mas=None,
-                 max_data_size=400,
+                 max_data_size=200,
                  bar_size=60,
                  delta=0.0012,
                  tradingHoursStart=None,
                  tradingHoursEnd=None,
-                 df=None):
-        self.orderDataDf = None
-        self.chatbot = ChatBot()
+                 chatbot=None):
+        self.orders = []
+        if chatbot is not None:
+            self.chatbot = chatbot
         self.tradingHoursStart = tradingHoursStart
         if self.tradingHoursStart is None:
             self.tradingHoursStart = self.get_now().replace(hour=16, minute=30, second=1)
@@ -34,7 +36,6 @@ class Trader:
         self.last_response_time = None
         self.previousOrderId = None
         self.traderApp = None
-        self.orderData = []
         if mas is None:
             mas = [
                 {"name": "SMA20", "period": 20, "type": "SMA"},
@@ -48,15 +49,15 @@ class Trader:
         self.last_sell_price = 0
         self.current_state = None
         self.units = units
-        self.last_price = 0
+        self.current_price = 0
 
         self.max_data_size = max_data_size
         self.bar_size = bar_size
         self.delta_percentage = delta
-        self.df = df
+        self.df = None
 
     def newBar(self, bar: RealTimeBar):
-        print(self.current_state, self.contract.symbol, bar)
+        logging.warning("State %s\t%s. Close: %s", self.current_state, self.contract.symbol, bar.close)
         if self.df is None:
             self.df = self.createDf(bar)
         elif self.last_response_time is None or bar.time - self.last_response_time >= self.bar_size:
@@ -94,20 +95,20 @@ class Trader:
 
     @synchronized_method
     def trade(self):
-        last_state, self.last_price, self.last_response_time = self.calculateMAsAndSentiment()
+        last_state, self.current_price, self.last_response_time = self.calculateMAsAndSentiment()
         if self.current_state is not last_state and last_state is not 'HOLD':
             time_remaining = (self.tradingHoursEnd - self.get_now()).total_seconds() / 60.0
             if self.isTradingHours() and time_remaining < 2:
                 if self.current_state is 'LONG':
-                    self.sell(price=self.last_price)
+                    self.sell(price=self.current_price)
                 elif self.get_now() > self.tradingHoursEnd:
                     print("End of day. Trader EXIT")
                     self.traderApp.disconnect()
                     raise SystemExit
             elif self.isTradingHours() and last_state is 'LONG' and self.current_state is not 'LONG' and self.canBuy():
-                self.buy(price=self.last_price)
+                self.buy(price=self.current_price)
             elif self.isTradingHours() and last_state is 'SHORT' and self.current_state is 'LONG' and self.canSell():
-                self.sell(price=self.last_price)
+                self.sell(price=self.current_price)
 
     def get_now(self):
         return datetime.datetime.now()
@@ -120,47 +121,54 @@ class Trader:
         order.orderType = "MKT"
         order.totalQuantity = self.units
 
-        self.traderApp.placeOrder(self.traderApp.nextorderId, self.contract, order)
-        self.previousOrderId = self.traderApp.nextorderId
-        self.traderApp.nextorderId += 1
-
+        self.openOrder(order)
         self.current_state = 'LONG'
-
-        self.writeCsv([self.get_now(), 'BUY', price])
         print("Buy", price)
-        self.chatbot.send("BOUGHT\nSYMBOL: " + self.contract.symbol + "\nPRICE: " + str(price))
 
     def sell(self, price=None):
-        earned = (price - self.last_buy_price) * self.units
         self.last_sell_price = price
         order = Order()
         order.action = 'SELL'
         order.orderType = "MKT"
         order.totalQuantity = self.units
 
-        self.traderApp.placeOrder(self.traderApp.nextorderId, self.contract, order)
-        self.previousOrderId = self.traderApp.nextorderId
-        self.traderApp.nextorderId += 1
-
+        self.openOrder(order)
         self.current_state = 'SHORT'
-
-        self.writeCsv([self.get_now(), 'SELL', price])
         print("Sell", price)
-        self.chatbot.send(
-            "SOLD\nSYMBOL: " + self.contract.symbol + "\nPRICE: " + str(price) + "\nEARNED: " + str(earned))
-
-    def writeCsv(self, orderData):
-
-        self.orderData.append(orderData)
-        self.orderDataDf = pandas.DataFrame(self.orderData, columns=['time', 'action', 'price'])
-        self.orderDataDf.to_csv(self.contract.symbol + '.csv')
 
     def isTradingHours(self):
         return self.tradingHoursStart <= self.get_now() < self.tradingHoursEnd
 
     def canBuy(self):
-        return True
-        # return (abs(self.last_sell_price - self.last_price) / self.last_price) >= self.delta_percentage
+        return (abs(self.last_sell_price - self.current_price) / self.current_price) >= self.delta_percentage
 
     def canSell(self):
-        return (abs(self.last_buy_price - self.last_price) / self.last_price) >= self.delta_percentage
+        return (abs(self.last_buy_price - self.current_price) / self.current_price) >= self.delta_percentage
+
+    def openOrder(self, order):
+        orderId = self.traderApp.nextorderId
+        self.traderApp.placeOrder(orderId, self.contract, order)
+        self.previousOrderId = orderId
+        self.orders.append({'orderId': orderId, 'action': order.action})
+        self.traderApp.nextorderId = orderId + 1
+
+    def hasOrderUpdate(self, orderId, status, filled, avgFillPrice, lastFillPrice):
+        for order in self.orders:
+            if order['orderId'] is orderId and status is 'Filled':
+                order_price = None
+                if avgFillPrice is not None:
+                    order_price = avgFillPrice
+                if lastFillPrice is not None:
+                    order_price = avgFillPrice
+                if order['action'] is 'BUY':
+                    if order_price is not None:
+                        self.last_buy_price = order_price
+                    self.chatbot.send(
+                        "BOUGHT\nSYMBOL: " + self.contract.symbol + "\nPRICE: " + str(self.last_buy_price))
+                if order['action'] is 'SELL':
+                    if order_price is not None:
+                        self.last_sell_price = order_price
+                    earned = (order_price - self.last_buy_price) * self.units
+                    self.chatbot.send(
+                        "SOLD\nSYMBOL: " + self.contract.symbol + "\nPRICE: " + str(
+                            self.last_sell_price) + "\nEARNED: " + str(earned))

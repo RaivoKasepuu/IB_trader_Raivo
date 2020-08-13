@@ -1,12 +1,15 @@
 # Below are the global variables
 
+import logging
 from threading import Thread
 
 from ibapi.client import *
 from ibapi.wrapper import *
 
-from traders.ma.trader import Trader
-import logging
+from message.chatbot import ChatBot
+from traders.ma.raivo_trader import RaivoTrader
+
+logging.basicConfig(format='%(asctime)s-%(levelname)s:%(message)s', level="WARN")
 
 
 class IBWrapper(EWrapper):
@@ -28,9 +31,12 @@ class IBWrapper(EWrapper):
         self.nextorderId = orderId
         logging.info('The next valid order id is: %s', self.nextorderId)
 
-    def orderStatus(self, orderId, status, filled, remaining, avgFullPrice, permId, parentId, lastFillPrice, clientId,
+    def orderStatus(self, orderId, status, filled, remaining, avgFillPrice, permId, parentId, lastFillPrice, clientId,
                     whyHeld, mktCapPrice):
-        logging.info('Order status: %s. Id: %s. Filled: %s', status, orderId, filled)
+        super().orderStatus(orderId, status, filled, remaining, avgFillPrice, permId, parentId, lastFillPrice, clientId, whyHeld, mktCapPrice)
+        logging.warning('Order status: %s. Id: %s. Filled: %s', status, orderId, filled)
+        for t in self.traders:
+            t.hasOrderUpdate(orderId, status, filled, avgFillPrice, lastFillPrice)
 
     def execDetails(self, reqId, contract, execution):
         logging.info('Order executed: %s', contract.symbol, execution.shares)
@@ -78,13 +84,9 @@ class IBApp(IBWrapper, IBClient):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s-%(levelname)s:%(message)s')
-
+    chatbot = ChatBot()
     traderDictList = [
-        {"reqId": 1, "trader": Trader('TSLA', units=12)},
-        {"reqId": 2, "trader": Trader('NVDA', units=35)},
-        {"reqId": 3, "trader": Trader('AMD', units=195)},
-        {"reqId": 4, "trader": Trader('TWLO', units=64)}
+        {"reqId": 1, "trader": RaivoTrader('TWLO', units=64, chatbot=chatbot, last_5_day_max=255.26, last_5_day_min=240.82)}
     ]
 
     app = IBApp("127.0.0.1", 7400, traders=traderDictList)
@@ -93,5 +95,5 @@ if __name__ == '__main__':
     for traderDict in traderDictList:
         reqId = traderDict['reqId']
         trader = traderDict['trader']
-        print("RealTimeBars requested from", trader.contract.symbol)
+        logging.warning("RealTimeBars requested for: %s", trader.contract.symbol)
         app.reqRealTimeBars(reqId, trader.contract, 30, "TRADES", False, [])

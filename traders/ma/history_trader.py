@@ -35,9 +35,6 @@ class HistoryTrader(Trader):
             elif self.isTradingHours() and last_state is 'SHORT' and self.current_state is 'LONG' and self.canSell():
                 self.sell(price=self.last_price)
 
-    def get_now(self):
-        return self.mocked_now
-
     def calculate_order_fee(self, order_unit_price, amount):
         fee = order_unit_price * amount
         if fee < 7:
@@ -78,3 +75,6 @@ class HistoryTrader(Trader):
 
     def set_mocked_now(self, index):
         self.mocked_now = index
+
+    def get_now(self):
+        return self.mocked_now
