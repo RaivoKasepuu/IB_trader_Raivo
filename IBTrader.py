@@ -36,7 +36,7 @@ class IBWrapper(EWrapper):
         super().orderStatus(orderId, status, filled, remaining, avgFillPrice, permId, parentId, lastFillPrice, clientId, whyHeld, mktCapPrice)
         logging.warning('Order status: %s. Id: %s. Filled: %s', status, orderId, filled)
         for t in self.traders:
-            t.hasOrderUpdate(orderId, status, filled, avgFillPrice, lastFillPrice)
+            t['trader'].hasOrderUpdate(orderId, status, filled, avgFillPrice, lastFillPrice)
 
     def execDetails(self, reqId, contract, execution):
         logging.info('Order executed: %s', contract.symbol, execution.shares)
