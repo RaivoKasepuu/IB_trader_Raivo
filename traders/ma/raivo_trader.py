@@ -38,7 +38,7 @@ class RaivoTrader(Trader):
             return 'SHORT'
 
     def canBuy(self):
-        return abs(self.last_sell_price - (self.delta_percentage*self.last_sell_price)) > self.current_price
+        return self.last_sell_price is 0 or abs(self.last_sell_price - (self.delta_percentage*self.last_sell_price)) > self.current_price
 
     def canSell(self):
         return abs(self.last_buy_price - (self.delta_percentage*self.last_buy_price)) > self.current_price
