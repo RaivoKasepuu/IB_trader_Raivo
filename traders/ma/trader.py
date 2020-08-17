@@ -98,6 +98,8 @@ class Trader:
         last_state, self.current_price, self.last_response_time = self.calculateMAsAndSentiment()
         if self.current_state is not last_state and last_state is not 'HOLD':
             time_remaining = (self.tradingHoursEnd - self.get_now()).total_seconds() / 60.0
+            print(self.df)
+            print("CURRENT", self.current_state, "LAST", last_state, self.current_price, self.isTradingHours(), self.canBuy(), self.canSell())
             if self.isTradingHours() and time_remaining < 2:
                 if self.current_state is 'LONG':
                     self.sell(price=self.current_price)
@@ -140,10 +142,12 @@ class Trader:
         return self.tradingHoursStart <= self.get_now() < self.tradingHoursEnd
 
     def canBuy(self):
-        return (abs(self.last_sell_price - self.current_price) / self.current_price) >= self.delta_percentage
+        print("Last SELL price", self.last_sell_price)
+        return (abs(self.last_sell_price - self.current_price) * 100 / self.current_price) >= self.delta_percentage
 
     def canSell(self):
-        return (abs(self.last_buy_price - self.current_price) / self.current_price) >= self.delta_percentage
+        print("Last BUY price", self.last_buy_price)
+        return (abs(self.last_buy_price - self.current_price) * 100 / self.current_price) >= self.delta_percentage
 
     def openOrder(self, order):
         orderId = self.traderApp.nextorderId
