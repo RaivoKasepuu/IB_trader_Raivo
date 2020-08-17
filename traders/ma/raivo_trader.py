@@ -12,10 +12,11 @@ class RaivoTrader(Trader):
                  mas=[{"name": "SMA9", "period": 9, "type": "SMA"}],
                  tradingHoursStart=None,
                  tradingHoursEnd=None,
-                 chatbot=None):
+                 chatbot=None,
+                 delta=0.1):
         super().__init__(symbol,
                          units,
-                         delta=0.1,
+                         delta=delta,
                          mas=mas,
                          tradingHoursStart=tradingHoursStart,
                          tradingHoursEnd=tradingHoursEnd,

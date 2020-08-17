@@ -23,6 +23,7 @@ class Trader:
                  tradingHoursEnd=None,
                  chatbot=None):
         self.orders = []
+        self.ordersUpdates = []
         if chatbot is not None:
             self.chatbot = chatbot
         self.tradingHoursStart = tradingHoursStart
@@ -99,7 +100,8 @@ class Trader:
         if self.current_state is not last_state and last_state is not 'HOLD':
             time_remaining = (self.tradingHoursEnd - self.get_now()).total_seconds() / 60.0
             print(self.df)
-            print("CURRENT", self.current_state, "LAST", last_state, self.current_price, self.isTradingHours(), self.canBuy(), self.canSell())
+            print("CURRENT", self.current_state, "LAST", last_state, self.current_price, self.isTradingHours(),
+                  self.canBuy(), self.canSell())
             if self.isTradingHours() and time_remaining < 2:
                 if self.current_state is 'LONG':
                     self.sell(price=self.current_price)
@@ -158,21 +160,27 @@ class Trader:
 
     def hasOrderUpdate(self, orderId, status, filled, avgFillPrice, lastFillPrice):
         for order in self.orders:
-            if order['orderId'] is orderId and status is 'Filled':
-                order_price = None
-                if avgFillPrice is not None:
-                    order_price = avgFillPrice
-                if lastFillPrice is not None:
-                    order_price = avgFillPrice
-                if order['action'] is 'BUY':
-                    if order_price is not None:
-                        self.last_buy_price = order_price
-                    self.chatbot.send(
-                        "BOUGHT\nSYMBOL: " + self.contract.symbol + "\nPRICE: " + str(self.last_buy_price))
-                if order['action'] is 'SELL':
-                    if order_price is not None:
-                        self.last_sell_price = order_price
-                    earned = (order_price - self.last_buy_price) * self.units
-                    self.chatbot.send(
-                        "SOLD\nSYMBOL: " + self.contract.symbol + "\nPRICE: " + str(
-                            self.last_sell_price) + "\nEARNED: " + str(earned))
+            if order['orderId'] is orderId:
+                self.ordersUpdates.append({'orderId': orderId,
+                                           'status': status,
+                                           'filled': filled,
+                                           'avgFillPrice': avgFillPrice,
+                                           'lastFillPrice': lastFillPrice})
+                if status is 'Filled':
+                    order_price = None
+                    if avgFillPrice is not None:
+                        order_price = avgFillPrice
+                    if lastFillPrice is not None:
+                        order_price = avgFillPrice
+                    if order['action'] is 'BUY':
+                        if order_price is not None:
+                            self.last_buy_price = order_price
+                        self.chatbot.send(
+                            "BOUGHT\nSYMBOL: " + self.contract.symbol + "\nPRICE: " + str(self.last_buy_price))
+                    if order['action'] is 'SELL':
+                        if order_price is not None:
+                            self.last_sell_price = order_price
+                        earned = (order_price - self.last_buy_price) * self.units
+                        self.chatbot.send(
+                            "SOLD\nSYMBOL: " + self.contract.symbol + "\nPRICE: " + str(
+                                self.last_sell_price) + "\nEARNED: " + str(earned))
