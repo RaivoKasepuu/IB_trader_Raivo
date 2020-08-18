@@ -104,8 +104,7 @@ if __name__ == '__main__':
                              tradingHoursStart=tradingHoursStart,
                              tradingHoursEnd=tradingHoursEnd)
     traderDictList = [
-        {"reqId": 1, "trader": twlo_trader},
-        {"reqId": 2, "trader": bmw_trader}
+        {"reqId": 1, "trader": twlo_trader}
     ]
 
     app = IBApp("127.0.0.1", 7400, traders=traderDictList)
