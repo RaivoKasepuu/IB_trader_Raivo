@@ -1,6 +1,5 @@
 # Below are the global variables
 
-import logging
 from datetime import datetime
 from threading import Thread
 
@@ -20,12 +19,18 @@ class IBWrapper(EWrapper):
 
         self.traders = traders
         self.nextorderId = None
+        tickId = 1
+        reqId = 1
 
         for trader in traders:
+            trader.reqId = reqId
+            trader.tickDataId = tickId
+            reqId += 1
+            tickId += 1
             if secondaryTrader is None:
-                trader['trader'].traderApp = self
+                trader.traderApp = self
             else:
-                trader['trader'].traderApp = secondaryTrader
+                trader.traderApp = secondaryTrader
 
     def nextValidId(self, orderId: int):
         super().nextValidId(orderId)
@@ -34,13 +39,14 @@ class IBWrapper(EWrapper):
 
     def orderStatus(self, orderId, status, filled, remaining, avgFillPrice, permId, parentId, lastFillPrice, clientId,
                     whyHeld, mktCapPrice):
-        super().orderStatus(orderId, status, filled, remaining, avgFillPrice, permId, parentId, lastFillPrice, clientId, whyHeld, mktCapPrice)
+        super().orderStatus(orderId, status, filled, remaining, avgFillPrice, permId, parentId, lastFillPrice, clientId,
+                            whyHeld, mktCapPrice)
         logging.warning('Order status: %s. Id: %s. Filled: %s', status, orderId, filled)
-        for t in self.traders:
-            t['trader'].hasOrderUpdate(orderId, status, filled, avgFillPrice, lastFillPrice)
 
     def execDetails(self, reqId, contract, execution):
-        logging.warning('Order executed: %s %s', contract.symbol, execution.shares)
+        logging.warning('Order executed: %s %s %s', contract.symbol, str(execution.price), str(execution.shares))
+        for t in self.traders:
+            t.hasOrderUpdate(reqId, execution.price, execution.shares, execution)
 
     def realtimeBar(self,
                     reqId: TickerId,
@@ -49,8 +55,15 @@ class IBWrapper(EWrapper):
         super().realtimeBar(reqId, response_time, open_, high, low, close, volume, wap, count)
         bar = RealTimeBar(response_time, -1, open_, high, low, close, volume, wap, count)
         for t in self.traders:
-            if t['reqId'] is reqId:
-                t['trader'].newBar(bar)
+            if t.reqId is reqId:
+                t.newBar(bar)
+                break
+
+    def tickByTickMidPoint(self, reqId: int, time: int, midPoint: float):
+        super().tickByTickMidPoint(reqId, time, midPoint)
+        for t in self.traders:
+            if t.tickDataId is reqId:
+                t.newMidpoint(midPoint)
                 break
 
 
@@ -61,7 +74,7 @@ class IBClient(EClient):
 
 
 class IBApp(IBWrapper, IBClient):
-    def __init__(self, ipaddress, portid, traders, secondaryTrader=None):
+    def __init__(self, ipaddress, portid, traders=[], secondaryTrader=None):
         IBWrapper.__init__(self, traders, secondaryTrader)
         IBClient.__init__(self, wrapper=self)
 
@@ -86,7 +99,11 @@ class IBApp(IBWrapper, IBClient):
 
 if __name__ == '__main__':
     chatbot = ChatBot()
-    twlo_trader = RaivoTrader('TWLO', units=64, chatbot=chatbot, last_5_day_max=255.26, last_5_day_min=240.82)
+
+    twlo_trader = RaivoTrader('TWLO', units=64, chatbot=chatbot, last_5_day_max=255.26, last_5_day_min=240.82, delta=0.4)
+    fb_trader = RaivoTrader('FB', units=76, chatbot=chatbot, last_5_day_max=264.00, last_5_day_min=259.82, delta=0.4)
+    nvda_trader = RaivoTrader('NVDA', units=44, chatbot=chatbot, last_5_day_max=500.26, last_5_day_min=455, delta=0.4)
+
     bmw_contract = Contract()
     bmw_contract.symbol = 'BMW'
     bmw_contract.secType = 'STK'
@@ -103,15 +120,17 @@ if __name__ == '__main__':
                              last_5_day_min=57.31,
                              tradingHoursStart=tradingHoursStart,
                              tradingHoursEnd=tradingHoursEnd)
-    traderDictList = [
-        {"reqId": 1, "trader": twlo_trader}
+    traderList = [
+        bmw_trader,
+        twlo_trader,
+        fb_trader,
+ #       nvda_trader
     ]
 
-    app = IBApp("127.0.0.1", 7400, traders=traderDictList)
+    ib = IBApp("127.0.0.1", 7400, traders=traderList)
     time.sleep(5)
 
-    for traderDict in traderDictList:
-        reqId = traderDict['reqId']
-        trader = traderDict['trader']
-        logging.warning("RealTimeBars requested for: %s", trader.contract.symbol)
-        app.reqRealTimeBars(reqId, trader.contract, 30, "TRADES", False, [])
+    for t in traderList:
+        logging.warning("RealTimeBars requested for: %s", t.contract.symbol)
+        ib.reqTickByTickData(t.tickDataId, t.contract, "MidPoint", 0, False)
+        ib.reqRealTimeBars(t.reqId, t.contract, 30, "TRADES", False, [])

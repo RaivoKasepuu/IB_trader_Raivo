@@ -14,7 +14,7 @@ class RaivoTrader(Trader):
                  tradingHoursStart=None,
                  tradingHoursEnd=None,
                  chatbot=None,
-                 delta=0.1):
+                 delta=0.4):
         if mas is None:
             mas = [{"name": "SMA9", "period": 9, "type": "SMA"}]
         super().__init__(symbol,
