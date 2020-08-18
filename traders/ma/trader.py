@@ -16,7 +16,7 @@ class Trader:
                  units=None,
                  contract: Contract = None,
                  mas=None,
-                 max_data_size=200,
+                 max_data_size=20000,
                  bar_size=60,
                  delta=0.0012,
                  tradingHoursStart=None,
@@ -37,11 +37,16 @@ class Trader:
         self.last_response_time = None
         self.previousOrderId = None
         self.traderApp = None
+        self.bar_size = 5
         if mas is None:
             mas = [
                 {"name": "SMA20", "period": 20, "type": "SMA"},
                 {"name": "SMA6", "period": 9, "type": "SMA"}
             ]
+        sentiment_size = bar_size / self.bar_size
+        if sentiment_size > 0:
+            for ma in mas:
+                ma['period'] = int(ma['period'] * sentiment_size)
         self.mas = mas
         self.contract = contract
         if symbol is not None:
@@ -53,7 +58,6 @@ class Trader:
         self.current_price = 0
 
         self.max_data_size = max_data_size
-        self.bar_size = bar_size
         self.delta_percentage = delta
         self.df = None
 
@@ -130,6 +134,8 @@ class Trader:
         print("Buy", price)
 
     def sell(self, price=None):
+        if price is None:
+            price = self.current_price
         self.last_sell_price = price
         order = Order()
         order.action = 'SELL'
@@ -144,12 +150,16 @@ class Trader:
         return self.tradingHoursStart <= self.get_now() < self.tradingHoursEnd
 
     def canBuy(self):
-        print("Last SELL price", self.last_sell_price)
-        return (abs(self.last_sell_price - self.current_price) * 100 / self.current_price) >= self.delta_percentage
+        return self.differenceFromLastSell() >= self.delta_percentage
+
+    def differenceFromLastSell(self):
+        return (abs(self.last_sell_price - self.current_price) * 100 / self.current_price)
 
     def canSell(self):
-        print("Last BUY price", self.last_buy_price)
-        return (abs(self.last_buy_price - self.current_price) * 100 / self.current_price) >= self.delta_percentage
+        return self.differenceFromLastBuy() >= self.delta_percentage
+
+    def differenceFromLastBuy(self):
+        return (abs(self.last_buy_price - self.current_price) * 100 / self.current_price)
 
     def openOrder(self, order):
         orderId = self.traderApp.nextorderId

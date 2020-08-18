@@ -10,11 +10,13 @@ class RaivoTrader(Trader):
                  units=None,
                  last_5_day_min=None,
                  last_5_day_max=None,
-                 mas=[{"name": "SMA9", "period": 9, "type": "SMA"}],
+                 mas=None,
                  tradingHoursStart=None,
                  tradingHoursEnd=None,
                  chatbot=None,
                  delta=0.1):
+        if mas is None:
+            mas = [{"name": "SMA9", "period": 9, "type": "SMA"}]
         super().__init__(symbol,
                          units,
                          contract=contract,
@@ -39,9 +41,3 @@ class RaivoTrader(Trader):
             return 'LONG'
         else:
             return 'SHORT'
-
-    def canBuy(self):
-        return self.last_sell_price is 0 or abs(self.last_sell_price - (self.delta_percentage*self.last_sell_price) / 100) > self.current_price
-
-    def canSell(self):
-        return abs(self.last_buy_price - (self.delta_percentage*self.last_buy_price) / 100) > self.current_price

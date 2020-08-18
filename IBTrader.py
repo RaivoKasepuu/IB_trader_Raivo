@@ -40,7 +40,7 @@ class IBWrapper(EWrapper):
             t['trader'].hasOrderUpdate(orderId, status, filled, avgFillPrice, lastFillPrice)
 
     def execDetails(self, reqId, contract, execution):
-        logging.info('Order executed: %s', contract.symbol, execution.shares)
+        logging.warning('Order executed: %s %s', contract.symbol, execution.shares)
 
     def realtimeBar(self,
                     reqId: TickerId,
