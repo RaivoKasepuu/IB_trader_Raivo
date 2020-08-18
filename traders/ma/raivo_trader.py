@@ -6,6 +6,7 @@ from traders.ma.trader import Trader
 class RaivoTrader(Trader):
     def __init__(self,
                  symbol=None,
+                 contract=None,
                  units=None,
                  last_5_day_min=None,
                  last_5_day_max=None,
@@ -16,6 +17,7 @@ class RaivoTrader(Trader):
                  delta=0.1):
         super().__init__(symbol,
                          units,
+                         contract=contract,
                          delta=delta,
                          mas=mas,
                          tradingHoursStart=tradingHoursStart,

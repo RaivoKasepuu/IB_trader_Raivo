@@ -1,6 +1,7 @@
 # Below are the global variables
 
 import logging
+from datetime import datetime
 from threading import Thread
 
 from ibapi.client import *
@@ -85,8 +86,26 @@ class IBApp(IBWrapper, IBClient):
 
 if __name__ == '__main__':
     chatbot = ChatBot()
+    twlo_trader = RaivoTrader('TWLO', units=64, chatbot=chatbot, last_5_day_max=255.26, last_5_day_min=240.82)
+    bmw_contract = Contract()
+    bmw_contract.symbol = 'BMW'
+    bmw_contract.secType = 'STK'
+    bmw_contract.exchange = 'IBIS'
+    bmw_contract.currency = 'EUR'
+
+    tradingHoursStart = datetime.now().replace(hour=10, minute=00, second=0)
+    tradingHoursEnd = datetime.now().replace(hour=19, minute=00, second=0)
+    bmw_trader = RaivoTrader(None,
+                             contract=bmw_contract,
+                             units=365,
+                             chatbot=chatbot,
+                             last_5_day_max=59.70,
+                             last_5_day_min=57.31,
+                             tradingHoursStart=tradingHoursStart,
+                             tradingHoursEnd=tradingHoursEnd)
     traderDictList = [
-        {"reqId": 1, "trader": RaivoTrader('TWLO', units=64, chatbot=chatbot, last_5_day_max=255.26, last_5_day_min=240.82)}
+        {"reqId": 1, "trader": twlo_trader},
+        {"reqId": 2, "trader": bmw_trader}
     ]
 
     app = IBApp("127.0.0.1", 7400, traders=traderDictList)
