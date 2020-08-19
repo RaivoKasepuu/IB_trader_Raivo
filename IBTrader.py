@@ -127,7 +127,8 @@ if __name__ == '__main__':
  #       nvda_trader
     ]
 
-    ib = IBApp("127.0.0.1", 7400, traders=traderList)
+    tradingIb = IBApp("127.0.0.1", 1234)
+    ib = IBApp("127.0.0.1", 7400, traders=traderList, secondaryTrader=tradingIb)
     time.sleep(5)
 
     for t in traderList:

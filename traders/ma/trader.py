@@ -190,7 +190,7 @@ class Trader:
 
     def hasOrderUpdate(self, orderId, order_price, qty, execution: Execution):
         for order in self.orders:
-            if order['orderId'] is orderId:
+            if order['orderId'] == orderId:
                 self.ordersUpdates.append({'orderId': orderId,
                                            'ticker': self.contract.symbol,
                                            'price': order_price,
