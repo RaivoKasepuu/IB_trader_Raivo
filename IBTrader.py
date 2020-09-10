@@ -100,9 +100,10 @@ class IBApp(IBWrapper, IBClient):
 if __name__ == '__main__':
     chatbot = ChatBot()
 
-    twlo_trader = RaivoTrader('TWLO', units=64, chatbot=chatbot, last_5_day_max=255.26, last_5_day_min=240.82, delta=0.4)
-    fb_trader = RaivoTrader('FB', units=76, chatbot=chatbot, last_5_day_max=264.00, last_5_day_min=259.82, delta=0.4)
-    nvda_trader = RaivoTrader('NVDA', units=44, chatbot=chatbot, last_5_day_max=500.26, last_5_day_min=455, delta=0.4)
+    twlo_trader = RaivoTrader('TWLO', units=100, chatbot=chatbot, last_5_day_max=290, last_5_day_min=270, delta=0.4)
+    fb_trader = RaivoTrader('FB', units=100, chatbot=chatbot, last_5_day_max=310, last_5_day_min=290, delta=0.4)
+    nvda_trader = RaivoTrader('NVDA', units=100, chatbot=chatbot, last_5_day_max=560, last_5_day_min=520, delta=0.4)
+    qcom_trader = RaivoTrader('QCOM', units=400, chatbot=chatbot, last_5_day_max=130, last_5_day_min=115, delta=0.4)
 
     bmw_contract = Contract()
     bmw_contract.symbol = 'BMW'
